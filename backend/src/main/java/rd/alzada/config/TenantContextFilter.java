@@ -65,6 +65,10 @@ public class TenantContextFilter extends OncePerRequestFilter {
           write(response, 403, "FORBIDDEN", "No tiene ese rol en la constructora");
           return;
         }
+        if (foreignCompany(request, memberships)) {
+          write(response, 403, "FORBIDDEN", "No tiene acceso a esa constructora");
+          return;
+        }
         write(response, 409, "COMPANY_REQUIRED", "Seleccione la constructora activa");
         return;
       }
@@ -126,6 +130,20 @@ public class TenantContextFilter extends OncePerRequestFilter {
     }
     CompanyRole highest = CompanyRole.highest(candidates.stream().map(item -> CompanyRole.valueOf(item.role())).toList());
     return candidates.stream().filter(item -> item.role().equals(highest.name())).findFirst().orElse(candidates.get(0));
+  }
+
+  private static boolean foreignCompany(HttpServletRequest request, List<MembershipView> memberships) {
+    String requestedCompany = request.getHeader("X-Company-Id");
+    if (requestedCompany == null || requestedCompany.isBlank()) {
+      return false;
+    }
+    UUID companyId;
+    try {
+      companyId = UUID.fromString(requestedCompany.trim());
+    } catch (IllegalArgumentException exception) {
+      return true;
+    }
+    return memberships.stream().noneMatch(item -> item.companyId().equals(companyId));
   }
 
   private static boolean roleMismatch(HttpServletRequest request, List<MembershipView> memberships) {

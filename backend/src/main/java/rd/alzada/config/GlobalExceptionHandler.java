@@ -13,10 +13,12 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -75,6 +77,20 @@ public class GlobalExceptionHandler {
     ProblemDetail detail = ProblemDetail.forStatusAndDetail(
         HttpStatus.CONFLICT, "La operación entra en conflicto con datos existentes o con una reserva simultánea");
     detail.setProperty("code", "CONFLICT");
+    return detail;
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ProblemDetail method(HttpRequestMethodNotSupportedException exception) {
+    ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.METHOD_NOT_ALLOWED, "Método no permitido");
+    detail.setProperty("code", "METHOD_NOT_ALLOWED");
+    return detail;
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ProblemDetail missing(NoResourceFoundException exception) {
+    ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "No se encontró el recurso");
+    detail.setProperty("code", "NOT_FOUND");
     return detail;
   }
 

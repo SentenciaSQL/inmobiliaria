@@ -42,7 +42,7 @@ public class Unit extends TenantEntity {
   @Column(precision = 4, scale = 1)
   private BigDecimal bathrooms;
 
-  @Column(precision = 10, scale = 2)
+  @Column(name = "area_m2", precision = 10, scale = 2)
   private BigDecimal areaM2;
 
   @Column(length = 40)
