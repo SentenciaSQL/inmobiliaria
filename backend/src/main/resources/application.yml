@@ -67,7 +67,7 @@ alzada:
   jwt-access-minutes: ${JWT_ACCESS_MINUTES:15}
   jwt-refresh-days: ${JWT_REFRESH_DAYS:14}
   cookie-secure: ${COOKIE_SECURE:false}
-  cors-origins: ${CORS_ORIGINS:http://localhost:4200}
+  cors-origins: ${CORS_ORIGINS:http://localhost:4200,http://127.0.0.1:4200}
   public-url: ${APP_PUBLIC_URL:http://localhost:4200}
   storage:
     type: ${STORAGE_TYPE:s3}

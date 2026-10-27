@@ -17,7 +17,9 @@ export function money(value: number | null | undefined, currency = 'DOP'): strin
 
 export function when(value: string | null | undefined, withTime = false): string {
   if (!value) return '—';
-  const date = new Date(value.includes('T') ? value : `${value}T00:00:00`);
+  const date = value.includes('T')
+    ? new Date(value)
+    : new Date(Date.UTC(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10)), 16));
   return new Intl.DateTimeFormat('es-DO', withTime
     ? { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Santo_Domingo' }
     : { dateStyle: 'medium', timeZone: 'America/Santo_Domingo' }).format(date);

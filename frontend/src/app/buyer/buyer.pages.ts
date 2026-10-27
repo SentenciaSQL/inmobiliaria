@@ -78,7 +78,7 @@ export class BuyerHomePage implements OnInit {
       <div class="mt-4 grid gap-3 sm:grid-cols-3">
         <article class="rounded-2xl bg-paper p-4"><p class="text-sm text-ink-soft">Pagado</p><p class="font-display text-2xl">{{ money(item.plan?.paid, item.currency) }}</p></article>
         <article class="rounded-2xl bg-paper p-4"><p class="text-sm text-ink-soft">Saldo</p><p class="font-display text-2xl">{{ money(item.plan?.balance, item.currency) }}</p></article>
-        <article class="rounded-2xl bg-paper p-4"><p class="text-sm text-ink-soft">Próximo vencimiento</p><p class="font-display text-2xl">{{ nextDue(item) }}</p></article>
+        <article class="rounded-2xl bg-paper p-4"><p class="text-sm text-ink-soft">{{ dueLabel(item) }}</p><p class="font-display text-2xl">{{ nextDue(item) }}</p></article>
       </div>
       <h2 class="mt-8 text-2xl">Calendario</h2>
       <div class="mt-3 overflow-x-auto rounded-2xl border border-line bg-paper"><table class="w-full min-w-[640px] text-left text-sm"><thead class="text-ink-soft"><tr><th class="p-3">Cuota</th><th>Vence</th><th>Monto</th><th>Pagado</th><th>Estado</th></tr></thead>
@@ -136,8 +136,14 @@ export class BuyerOperationPage implements OnInit {
   }
 
   nextDue(item: BuyerOperation): string {
-    const row = item.plan?.installments.find((installment) => installment.status !== 'PAID' && installment.status !== 'CANCELLED');
+    const row = this.openInstallment(item);
     return row ? when(row.dueDate) : 'Sin pendientes';
+  }
+  dueLabel(item: BuyerOperation): string {
+    return this.openInstallment(item)?.status === 'OVERDUE' ? 'Cuota vencida' : 'Próximo vencimiento';
+  }
+  private openInstallment(item: BuyerOperation) {
+    return item.plan?.installments.find((installment) => installment.status !== 'PAID' && installment.status !== 'CANCELLED');
   }
   installment(value: string) { return label(INSTALLMENT_STATUS, value); }
   paymentStatus(value: string) { return label(PAYMENT_STATUS, value); }
