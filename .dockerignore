@@ -1,0 +1,12 @@
+.git
+**/.git
+**/node_modules
+**/dist
+**/.angular
+**/target
+data
+**/.env
+**/.npmrc
+**/*.md
+agent-transcripts
+**/coverage

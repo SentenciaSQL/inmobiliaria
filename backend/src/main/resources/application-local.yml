@@ -1,0 +1,8 @@
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev
+
+alzada:
+  jwt-secret: local-dev-only-change-this-secret-key-32b
+  notifications:
+    email-enabled: ${EMAIL_ENABLED:true}
