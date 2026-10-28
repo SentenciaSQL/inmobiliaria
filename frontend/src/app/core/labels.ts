@@ -66,6 +66,13 @@ export const INSTALLMENT_STATUS: Record<string, string> = {
   CANCELLED: 'Cancelada',
 };
 
+export const INSTALLMENT_KIND: Record<string, string> = {
+  DOWN_PAYMENT: 'Inicial',
+  REGULAR: 'Regular',
+  EXTRAORDINARY: 'Extraordinaria',
+  DELIVERY: 'Contra entrega',
+};
+
 export const RESERVATION_STATUS: Record<string, string> = {
   ACTIVE: 'Activa',
   EXPIRED: 'Expirada',

@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink, RouterOutlet } from '@angular/router';
 import { ApiService } from '../core/api.service';
-import { INSTALLMENT_STATUS, PAYMENT_STATUS, label } from '../core/labels';
+import { INSTALLMENT_KIND, INSTALLMENT_STATUS, PAYMENT_STATUS, label } from '../core/labels';
 import { BuyerHome, BuyerOperation, DocumentItem, Notice } from '../core/models';
 import { SessionService } from '../core/session.service';
 import { EmptyState, Loading, Logo, money, problemMessage, when } from '../shared/ui';
@@ -81,8 +81,8 @@ export class BuyerHomePage implements OnInit {
         <article class="rounded-2xl bg-paper p-4"><p class="text-sm text-ink-soft">{{ dueLabel(item) }}</p><p class="font-display text-2xl">{{ nextDue(item) }}</p></article>
       </div>
       <h2 class="mt-8 text-2xl">Calendario</h2>
-      <div class="mt-3 overflow-x-auto rounded-2xl border border-line bg-paper"><table class="w-full min-w-[640px] text-left text-sm"><thead class="text-ink-soft"><tr><th class="p-3">Cuota</th><th>Vence</th><th>Monto</th><th>Pagado</th><th>Estado</th></tr></thead>
-        <tbody>@for (row of item.plan?.installments ?? []; track row.id) { <tr class="border-t border-line"><td class="p-3">{{ row.label }}</td><td>{{ when(row.dueDate) }}</td><td>{{ money(row.amount, item.currency) }}</td><td>{{ money(row.paidAmount, item.currency) }}</td><td>{{ installment(row.status) }}</td></tr> }</tbody></table></div>
+      <div class="mt-3 overflow-x-auto rounded-2xl border border-line bg-paper"><table class="w-full min-w-[640px] text-left text-sm"><thead class="text-ink-soft"><tr><th class="p-3">Tipo</th><th>Cuota</th><th>Vence</th><th>Monto</th><th>Pagado</th><th>Estado</th></tr></thead>
+        <tbody>@for (row of item.plan?.installments ?? []; track row.id) { <tr class="border-t border-line"><td class="p-3">{{ kind(row.kind) }}</td><td>{{ row.label }}</td><td>{{ when(row.dueDate) }}</td><td>{{ money(row.amount, item.currency) }}</td><td>{{ money(row.paidAmount, item.currency) }}</td><td>{{ installment(row.status) }}</td></tr> }</tbody></table></div>
       <h2 class="mt-8 text-2xl">Pagos</h2>
       <ul class="mt-3 space-y-2 text-sm">@for (payment of item.plan?.payments ?? []; track payment.id) { <li class="rounded-2xl bg-paper p-3">{{ money(payment.amount, payment.currency) }} · {{ paymentStatus(payment.status) }} @if (payment.rejectionReason) { · {{ payment.rejectionReason }} }</li> }</ul>
       <form class="mt-4 grid gap-3 rounded-3xl border border-line bg-paper p-4" [formGroup]="form" (ngSubmit)="report()">
@@ -146,6 +146,7 @@ export class BuyerOperationPage implements OnInit {
     return item.plan?.installments.find((installment) => installment.status !== 'PAID' && installment.status !== 'CANCELLED');
   }
   installment(value: string) { return label(INSTALLMENT_STATUS, value); }
+  kind(value: string) { return label(INSTALLMENT_KIND, value); }
   paymentStatus(value: string) { return label(PAYMENT_STATUS, value); }
   fileOf(event: Event) { return (event.target as HTMLInputElement).files?.[0] ?? null; }
   download(document: DocumentItem): void {
