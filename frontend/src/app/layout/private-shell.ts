@@ -35,6 +35,7 @@ interface NavItem { path: string; label: string; roles: string[]; }
               <a routerLink="/seleccionar-empresa">Cambiar empresa</a>
             }
             <a routerLink="/app/notificaciones">Avisos @if (unread()) { ({{ unread() }}) }</a>
+            <a routerLink="/cuenta">Contraseña</a>
             <button type="button" (click)="session.logout()">Salir</button>
           </div>
         </header>
@@ -96,6 +97,7 @@ export class PrivateShell implements OnInit {
       </aside>
       <div>
         <header class="flex justify-end gap-4 border-b border-line bg-paper px-4 py-3 text-sm">
+          <a routerLink="/cuenta">Contraseña</a>
           <button type="button" (click)="session.logout()">Salir</button>
         </header>
         <div class="px-4 py-6"><router-outlet /></div>

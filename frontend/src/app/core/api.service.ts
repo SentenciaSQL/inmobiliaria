@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
 import {
   AuditEvent,
   Brand,
@@ -55,7 +55,7 @@ export class ApiService {
   }
 
   changePassword(currentPassword: string, newPassword: string): Observable<void> {
-    return this.http.put<void>('/api/v1/auth/password', { currentPassword, newPassword });
+    return this.http.put('/api/v1/auth/password', { currentPassword, newPassword }, { responseType: 'text' }).pipe(map(() => undefined));
   }
 
   locations(): Observable<Province[]> {

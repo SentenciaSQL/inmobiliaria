@@ -19,6 +19,7 @@ import { EmptyState, Loading, Logo, money, problemMessage, when } from '../share
         </a>
         <div class="flex gap-3 text-sm">
           @if ((session.user()?.memberships?.length ?? 0) > 1) { <a routerLink="/seleccionar-empresa">Otra empresa</a> }
+          <a routerLink="/cuenta">Contraseña</a>
           <button type="button" (click)="session.logout()">Salir</button>
         </div>
       </div>

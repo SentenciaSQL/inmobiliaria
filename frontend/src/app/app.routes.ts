@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { CompanySwitchPage, LoginPage } from './auth/access.pages';
+import { CompanySwitchPage, LoginPage, PasswordPage } from './auth/access.pages';
 import { BuyerHomePage, BuyerOperationPage, BuyerShell } from './buyer/buyer.pages';
 import {
   BuildingsPage, CompanyProfilePage, DashboardPage, LeadDetailPage, LeadsPage, ProjectEditorPage, ProjectsPage, ReservationsPage, UnitsPage,
@@ -23,6 +23,7 @@ export const routes: Routes = [
   { path: 'proyectos/:slug', component: ProjectDetailPage },
   { path: 'constructoras/:slug', component: CompanyPublicPage },
   { path: 'ingresar', component: LoginPage },
+  { path: 'cuenta', component: PasswordPage, canActivate: [authGuard] },
   { path: 'seleccionar-empresa', component: CompanySwitchPage, canActivate: [authGuard] },
   {
     path: 'plataforma',
