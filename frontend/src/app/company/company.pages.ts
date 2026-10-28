@@ -2,11 +2,12 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
+import { SessionService } from '../core/session.service';
 import {
   AVAILABILITY, CONTRACT_STATUS, INSTALLMENT_STATUS, PAYMENT_STATUS, PROJECT_STATUS, PROJECT_TYPES, PROPERTY_TYPES, PUBLICATION, RESERVATION_STATUS, ROLE_LABELS, label,
 } from '../core/labels';
 import {
-  AuditEvent, CompanyProfile, Contract, Customer, Dashboard, DocumentItem, Lead, Member, Notice, Payment, PlanView, ProjectDetail, Province, Reservation, Stage, TemplateView, Unit,
+  AuditEvent, Building, CompanyProfile, Contract, Customer, Dashboard, DocumentItem, Lead, Member, Notice, Payment, PlanView, ProjectDetail, Province, Reservation, Stage, TemplateView, Unit,
 } from '../core/models';
 import { EmptyState, Loading, Logo, Pager, money, problemMessage, when } from '../shared/ui';
 
@@ -403,6 +404,104 @@ function splitList(value: string): string[] {
 }
 
 @Component({
+  selector: 'app-buildings',
+  imports: [ReactiveFormsModule, Loading, EmptyState],
+  template: `
+    <h1 class="text-4xl">Edificios y bloques</h1>
+    <p class="mt-2 max-w-2xl text-sm text-ink-soft">Agrupe las casas y los apartamentos por torre, manzana o bloque. Una unidad puede quedar sin edificio.</p>
+    <label class="mt-4 block max-w-md text-sm">Proyecto
+      <select class="field" [value]="projectId()" (change)="chooseProject($event)">
+        <option value="">Seleccione</option>
+        @for (project of projects(); track project.id) { <option [value]="project.id">{{ project.name }}</option> }
+      </select>
+    </label>
+    @if (projectId()) {
+      @if (canWrite()) {
+        <form class="mt-4 grid gap-3 rounded-3xl border border-line bg-paper p-4 md:grid-cols-4" [formGroup]="form" (ngSubmit)="save()">
+          <label class="text-sm md:col-span-2">Nombre<input class="field" formControlName="name" /></label>
+          <label class="text-sm">Código<input class="field" formControlName="code" /></label>
+          <label class="text-sm">Niveles<input class="field" type="number" min="0" max="200" formControlName="floors" /></label>
+          <button class="rounded-full bg-sea px-4 py-2 text-sand md:col-span-4 md:w-fit" type="submit">{{ editing() ? 'Actualizar' : 'Agregar edificio' }}</button>
+        </form>
+      }
+      @if (message()) { <p class="mt-2 text-sm">{{ message() }}</p> }
+      @if (loading()) { <app-loading /> }
+      @else if (items().length === 0) { <div class="mt-4"><app-empty title="Sin edificios" detail="Agregue la primera torre o el primer bloque de este proyecto." /></div> }
+      @else {
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-line bg-paper">
+          <table class="w-full min-w-[640px] text-left text-sm">
+            <thead class="text-ink-soft"><tr><th class="p-3">Código</th><th>Nombre</th><th>Niveles</th><th></th></tr></thead>
+            <tbody>
+              @for (building of items(); track building.id) {
+                <tr class="border-t border-line">
+                  <td class="p-3">{{ building.code }}</td>
+                  <td>{{ building.name }}</td>
+                  <td>{{ building.floors ?? '—' }}</td>
+                  <td class="space-x-2 p-3 text-right">
+                    @if (canWrite()) {
+                      <button type="button" (click)="edit(building)">Editar</button>
+                      <button type="button" (click)="remove(building)">Eliminar</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  `,
+  styles: `.field { margin-top: 0.25rem; width: 100%; border: 1px solid var(--color-line); border-radius: 0.75rem; padding: 0.5rem 0.75rem; }`,
+})
+export class BuildingsPage implements OnInit {
+  private readonly api = inject(ApiService);
+  private readonly session = inject(SessionService);
+  private readonly formBuilder = inject(FormBuilder);
+  readonly projects = signal<ProjectDetail[]>([]);
+  readonly items = signal<Building[]>([]);
+  readonly projectId = signal('');
+  readonly editing = signal<string | null>(null);
+  readonly loading = signal(false);
+  readonly message = signal('');
+  readonly form = this.formBuilder.nonNullable.group({
+    name: ['', Validators.required],
+    code: ['', Validators.required],
+    floors: [''],
+  });
+
+  ngOnInit(): void { this.api.projects({ page: 0, size: 100 }).subscribe((page) => this.projects.set(page.content)); }
+  canWrite() { return this.session.company()?.role === 'COMPANY_ADMIN'; }
+  chooseProject(event: Event): void {
+    this.projectId.set((event.target as HTMLSelectElement).value);
+    this.editing.set(null);
+    this.form.reset({ name: '', code: '', floors: '' });
+    this.reload();
+  }
+  reload(): void {
+    if (!this.projectId()) return;
+    this.loading.set(true);
+    this.api.buildings(this.projectId()).subscribe({ next: (items) => { this.items.set(items); this.loading.set(false); }, error: () => this.loading.set(false) });
+  }
+  save(): void {
+    if (this.form.invalid || !this.projectId()) return;
+    const value = this.form.getRawValue();
+    const floors = value.floors === '' ? null : Number(value.floors);
+    this.api.saveBuilding(this.projectId(), this.editing(), { name: value.name.trim(), code: value.code.trim(), floors: Number.isFinite(floors) ? floors : null }).subscribe({
+      next: () => { this.editing.set(null); this.form.reset({ name: '', code: '', floors: '' }); this.message.set('Edificio guardado.'); this.reload(); },
+      error: (error) => this.message.set(problemMessage(error)),
+    });
+  }
+  edit(building: Building): void {
+    this.editing.set(building.id);
+    this.form.patchValue({ name: building.name, code: building.code, floors: building.floors?.toString() ?? '' });
+  }
+  remove(building: Building): void {
+    if (!confirm(`¿Eliminar ${building.name}? Solo es posible si no tiene unidades.`)) return;
+    this.api.deleteBuilding(building.id).subscribe({ next: () => { this.message.set('Edificio eliminado.'); this.reload(); }, error: (error) => this.message.set(problemMessage(error)) });
+  }
+}
+
+@Component({
   selector: 'app-units',
   imports: [ReactiveFormsModule, Loading, EmptyState],
   template: `
@@ -423,6 +522,12 @@ function splitList(value: string): string[] {
         <label class="text-sm">Baños<input class="field" formControlName="bathrooms" /></label>
         <label class="text-sm">m²<input class="field" formControlName="areaM2" /></label>
         <label class="text-sm">Nivel<input class="field" formControlName="levelLabel" /></label>
+        <label class="text-sm md:col-span-2">Edificio o bloque
+          <select class="field" formControlName="buildingId">
+            <option value="">Sin edificio</option>
+            @for (building of buildings(); track building.id) { <option [value]="building.id">{{ building.name }} · {{ building.code }}</option> }
+          </select>
+        </label>
         <label class="text-sm md:col-span-2">Características<input class="field" formControlName="features" /></label>
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" formControlName="publiclyVisible" /> Visible al público</label>
         <button class="rounded-full bg-sea px-4 py-2 text-sand" type="submit">{{ editing() ? 'Actualizar' : 'Agregar' }}</button>
@@ -433,11 +538,11 @@ function splitList(value: string): string[] {
       @else {
         <div class="mt-4 overflow-x-auto rounded-2xl border border-line bg-paper">
           <table class="w-full min-w-[760px] text-left text-sm">
-            <thead class="text-ink-soft"><tr><th class="p-3">Código</th><th>Tipo</th><th>Precio</th><th>Estado</th><th></th></tr></thead>
+            <thead class="text-ink-soft"><tr><th class="p-3">Código</th><th>Edificio</th><th>Tipo</th><th>Precio</th><th>Estado</th><th></th></tr></thead>
             <tbody>
               @for (unit of items(); track unit.id) {
                 <tr class="border-t border-line">
-                  <td class="p-3">{{ unit.code }}</td><td>{{ type(unit.propertyType) }}</td><td>{{ money(unit.price, unit.currency) }}</td><td>{{ availability(unit.availability) }}</td>
+                  <td class="p-3">{{ unit.code }}</td><td>{{ buildingName(unit.buildingId) }}</td><td>{{ type(unit.propertyType) }}</td><td>{{ money(unit.price, unit.currency) }}</td><td>{{ availability(unit.availability) }}</td>
                   <td class="space-x-2 p-3 text-right">
                     <button type="button" (click)="edit(unit)">Editar</button>
                     @if (unit.availability === 'AVAILABLE') { <button type="button" (click)="mark(unit, 'OFF_MARKET')">Retirar</button> }
@@ -458,6 +563,7 @@ export class UnitsPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly formBuilder = inject(FormBuilder);
   readonly projects = signal<ProjectDetail[]>([]);
+  readonly buildings = signal<Building[]>([]);
   readonly items = signal<Unit[]>([]);
   readonly projectId = signal('');
   readonly editing = signal<string | null>(null);
@@ -475,7 +581,9 @@ export class UnitsPage implements OnInit {
     if (!this.projectId()) return;
     this.loading.set(true);
     this.api.unitsOf(this.projectId()).subscribe({ next: (items) => { this.items.set(items); this.loading.set(false); }, error: () => this.loading.set(false) });
+    this.api.buildings(this.projectId()).subscribe((items) => this.buildings.set(items));
   }
+  buildingName(id: string | null) { return this.buildings().find((building) => building.id === id)?.name ?? '—'; }
   save(): void {
     const value = this.form.getRawValue();
     const body = { ...value, buildingId: value.buildingId || null, bathrooms: value.bathrooms ? Number(value.bathrooms) : null, areaM2: value.areaM2 ? Number(value.areaM2) : null, features: splitList(value.features), price: Number(value.price) };

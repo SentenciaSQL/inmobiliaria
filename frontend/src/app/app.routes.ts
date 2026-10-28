@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 import { CompanySwitchPage, LoginPage } from './auth/access.pages';
 import { BuyerHomePage, BuyerOperationPage, BuyerShell } from './buyer/buyer.pages';
 import {
-  CompanyProfilePage, DashboardPage, LeadDetailPage, LeadsPage, ProjectEditorPage, ProjectsPage, ReservationsPage, UnitsPage,
+  BuildingsPage, CompanyProfilePage, DashboardPage, LeadDetailPage, LeadsPage, ProjectEditorPage, ProjectsPage, ReservationsPage, UnitsPage,
 } from './company/company.pages';
 import {
   AuditPage, ContractDetailPage, ContractsPage, CustomersPage, NoticesPage, PaymentsPage, TemplatesPage, TeamPage,
@@ -43,6 +43,7 @@ export const routes: Routes = [
       { path: 'empresa', component: CompanyProfilePage, canActivate: [admin] },
       { path: 'proyectos', component: ProjectsPage },
       { path: 'proyectos/:id', component: ProjectEditorPage },
+      { path: 'edificios', component: BuildingsPage },
       { path: 'unidades', component: UnitsPage },
       { path: 'prospectos', component: LeadsPage, canActivate: [sales] },
       { path: 'prospectos/:id', component: LeadDetailPage, canActivate: [sales] },

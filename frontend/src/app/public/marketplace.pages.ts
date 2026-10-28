@@ -253,16 +253,27 @@ export class HomePage implements OnInit {
             @if (project.features.length) {
               <div><h2 class="text-2xl">Características</h2><ul class="mt-2 list-disc pl-5 text-sm">@for (item of project.features; track item) { <li>{{ item }}</li> }</ul></div>
             }
+            @if (project.buildings.length) {
+              <div>
+                <h2 class="text-2xl">Edificios y bloques</h2>
+                <ul class="mt-2 space-y-2 text-sm">
+                  @for (building of project.buildings; track building.id) {
+                    <li class="rounded-2xl bg-paper px-3 py-2">{{ building.name }} · {{ building.code }}@if (building.floors) { · {{ building.floors }} niveles }</li>
+                  }
+                </ul>
+              </div>
+            }
             <div>
               <h2 class="text-2xl">Unidades publicadas</h2>
               @if (project.units.length === 0) { <p class="mt-2 text-sm text-ink-soft">No hay unidades visibles en este momento.</p> }
               <div class="mt-3 overflow-x-auto">
                 <table class="w-full min-w-[640px] text-left text-sm">
-                  <thead class="text-ink-soft"><tr><th class="py-2">Código</th><th>Tipo</th><th>Hab.</th><th>Baños</th><th>m²</th><th>Precio</th><th>Estado</th></tr></thead>
+                  <thead class="text-ink-soft"><tr><th class="py-2">Código</th><th>Edificio</th><th>Tipo</th><th>Hab.</th><th>Baños</th><th>m²</th><th>Precio</th><th>Estado</th></tr></thead>
                   <tbody>
                     @for (unit of project.units; track unit.id) {
                       <tr class="border-t border-line">
                         <td class="py-2">{{ unit.code }}</td>
+                        <td>{{ unit.buildingName || '—' }}</td>
                         <td>{{ unit.propertyType }}</td>
                         <td>{{ unit.bedrooms ?? '—' }}</td>
                         <td>{{ unit.bathrooms ?? '—' }}</td>

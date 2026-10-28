@@ -7,6 +7,8 @@ import rd.alzada.common.RateLimiter;
 import rd.alzada.common.TenantContext;
 import rd.alzada.common.Texts;
 import rd.alzada.config.AppProperties;
+import rd.alzada.inventory.Building;
+import rd.alzada.inventory.BuildingRepository;
 import rd.alzada.inventory.Unit;
 import rd.alzada.inventory.UnitRepository;
 import rd.alzada.leads.CrmService;
@@ -24,7 +26,9 @@ import rd.alzada.tenants.Province;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +39,7 @@ public class MarketplaceService {
   private final ProjectRepository projects;
   private final ProjectImageRepository images;
   private final UnitRepository units;
+  private final BuildingRepository buildings;
   private final CompanyRepository companies;
   private final LocationCatalog locations;
   private final CrmService crm;
@@ -46,6 +51,7 @@ public class MarketplaceService {
       ProjectRepository projects,
       ProjectImageRepository images,
       UnitRepository units,
+      BuildingRepository buildings,
       CompanyRepository companies,
       LocationCatalog locations,
       CrmService crm,
@@ -54,6 +60,7 @@ public class MarketplaceService {
     this.projects = projects;
     this.images = images;
     this.units = units;
+    this.buildings = buildings;
     this.companies = companies;
     this.locations = locations;
     this.crm = crm;
@@ -104,10 +111,13 @@ public class MarketplaceService {
     Project project = projects.findPublishedBySlug(slug).orElseThrow(() -> ApiException.notFound("El proyecto no está publicado"));
     Company company = companies.findById(project.getTenantId()).orElseThrow(() -> ApiException.notFound("El proyecto no está publicado"));
     List<ProjectImage> gallery = images.findByProjectIdOrderBySortOrderAsc(project.getId());
-    List<UnitCard> visible = units.findVisible(project.getId()).stream().map(this::unitCard).toList();
+    List<Building> blocks = buildings.findByProjectIdOrderByNameAsc(project.getId());
+    Map<UUID, String> buildingNames = blocks.stream().collect(Collectors.toMap(Building::getId, Building::getName));
+    List<UnitCard> visible = units.findVisible(project.getId()).stream().map(unit -> unitCard(unit, buildingNames.get(unit.getBuildingId()))).toList();
     return new ProjectPage(card(project), project.getDescription(), project.getAddress(), project.getLatitude(), project.getLongitude(),
         project.getEstimatedStart(), project.getEstimatedDelivery(), project.getAmenities(), project.getFeatures(), project.getCommercialInfo(),
         gallery.stream().map(image -> new ImageCard(image.getId(), image.getAltText(), "/api/v1/public/media/projects/" + project.getId() + "/images/" + image.getId())).toList(),
+        blocks.stream().map(building -> new BuildingCard(building.getId(), building.getName(), building.getCode(), building.getFloors())).toList(),
         visible,
         new CompanyCard(company.getId(), company.getSlug(), company.getCommercialName(), company.getDescription(), CompanyService.logoUrl(company), company.getPublicPhone(), company.getPublicEmail(), company.getWebsite(), company.getPublicContact()));
   }
@@ -192,8 +202,8 @@ public class MarketplaceService {
         cover == null ? null : "/api/v1/public/media/projects/" + project.getId() + "/images/" + cover.getId());
   }
 
-  private UnitCard unitCard(Unit unit) {
-    return new UnitCard(unit.getId(), unit.getCode(), unit.getPropertyType(), unit.getBedrooms(), unit.getBathrooms(), unit.getAreaM2(), unit.getLevelLabel(), unit.getPrice(), unit.getCurrency(), unit.getAvailability(), unit.getFeatures());
+  private UnitCard unitCard(Unit unit, String buildingName) {
+    return new UnitCard(unit.getId(), unit.getCode(), unit.getPropertyType(), unit.getBedrooms(), unit.getBathrooms(), unit.getAreaM2(), unit.getLevelLabel(), unit.getPrice(), unit.getCurrency(), unit.getAvailability(), unit.getFeatures(), buildingName);
   }
 
   private MunicipalityNode municipality(Municipality municipality) {
@@ -219,6 +229,7 @@ public class MarketplaceService {
       String companyLogoUrl,
       String coverUrl) {}
   public record ImageCard(UUID id, String altText, String url) {}
+  public record BuildingCard(UUID id, String name, String code, Integer floors) {}
   public record UnitCard(
       UUID id,
       String code,
@@ -230,7 +241,8 @@ public class MarketplaceService {
       BigDecimal price,
       String currency,
       Unit.Availability availability,
-      List<String> features) {}
+      List<String> features,
+      String buildingName) {}
   public record CompanyCard(UUID id, String slug, String commercialName, String description, String logoUrl, String publicPhone, String publicEmail, String website, String publicContact) {}
   public record ProjectPage(
       ProjectCard summary,
@@ -244,6 +256,7 @@ public class MarketplaceService {
       List<String> features,
       String commercialInfo,
       List<ImageCard> images,
+      List<BuildingCard> buildings,
       List<UnitCard> units,
       CompanyCard company) {}
   public record CompanyPage(

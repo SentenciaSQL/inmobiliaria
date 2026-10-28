@@ -54,6 +54,7 @@ export class PrivateShell implements OnInit {
     { path: '/app', label: 'Resumen', roles: ['COMPANY_ADMIN', 'SALES_ADVISOR', 'FINANCE'] },
     { path: '/app/empresa', label: 'Empresa', roles: ['COMPANY_ADMIN'] },
     { path: '/app/proyectos', label: 'Proyectos', roles: ['COMPANY_ADMIN', 'SALES_ADVISOR', 'FINANCE'] },
+    { path: '/app/edificios', label: 'Edificios', roles: ['COMPANY_ADMIN', 'SALES_ADVISOR', 'FINANCE'] },
     { path: '/app/unidades', label: 'Unidades', roles: ['COMPANY_ADMIN', 'SALES_ADVISOR', 'FINANCE'] },
     { path: '/app/prospectos', label: 'Prospectos', roles: ['COMPANY_ADMIN', 'SALES_ADVISOR'] },
     { path: '/app/reservas', label: 'Reservas', roles: ['COMPANY_ADMIN', 'SALES_ADVISOR'] },

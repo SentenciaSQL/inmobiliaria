@@ -224,7 +224,7 @@ public class CatalogService {
     building.setProjectId(projectId);
     building.setName(name.trim());
     building.setCode(code.trim());
-    building.setFloors(floors);
+    building.setFloors(levels(floors));
     return buildings.save(building);
   }
 
@@ -232,9 +232,13 @@ public class CatalogService {
   public Building updateBuilding(UUID id, String name, String code, Integer floors) {
     Building building = buildings.findByIdAndTenantId(id, SecuritySupport.tenantId())
         .orElseThrow(() -> ApiException.notFound("El edificio no existe"));
+    String normalized = code.trim();
+    if (buildings.existsByProjectIdAndCodeIgnoreCaseAndIdNot(building.getProjectId(), normalized, id)) {
+      throw ApiException.conflict("Ya existe un edificio con ese código");
+    }
     building.setName(name.trim());
-    building.setCode(code.trim());
-    building.setFloors(floors);
+    building.setCode(normalized);
+    building.setFloors(levels(floors));
     return building;
   }
 
@@ -361,6 +365,13 @@ public class CatalogService {
     unit.setCurrency(currency(request.currency()));
     unit.setFeatures(cleanList(request.features()));
     unit.setPubliclyVisible(request.publiclyVisible());
+  }
+
+  private static Integer levels(Integer floors) {
+    if (floors != null && (floors < 0 || floors > 200)) {
+      throw ApiException.badRequest("La cantidad de niveles no es válida");
+    }
+    return floors;
   }
 
   private Project requireProject(UUID id) {

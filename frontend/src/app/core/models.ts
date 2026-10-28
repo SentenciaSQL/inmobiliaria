@@ -74,6 +74,14 @@ export interface PublicUnit {
   currency: string;
   availability: string;
   features: string[];
+  buildingName: string | null;
+}
+
+export interface PublicBuilding {
+  id: string;
+  name: string;
+  code: string;
+  floors: number | null;
 }
 
 export interface ProjectPage {
@@ -88,6 +96,7 @@ export interface ProjectPage {
   features: string[];
   commercialInfo: string | null;
   images: { id: string; altText: string | null; url: string }[];
+  buildings: PublicBuilding[];
   units: PublicUnit[];
   company: {
     id: string;
