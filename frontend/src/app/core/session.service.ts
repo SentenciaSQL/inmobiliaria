@@ -49,6 +49,10 @@ export class SessionService {
     this.api.logout().subscribe({ complete: () => this.finishLogout(), error: () => this.finishLogout() });
   }
 
+  discard(): void {
+    this.clear();
+  }
+
   select(membership: Membership): void {
     this.company.set(membership);
     sessionStorage.setItem(COMPANY_KEY, JSON.stringify(membership));
