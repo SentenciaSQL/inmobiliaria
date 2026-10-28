@@ -1,8 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../core/api.service';
-import { CONTRACT_STATUS, INSTALLMENT_STATUS, PAYMENT_STATUS, ROLE_LABELS, label } from '../core/labels';
+import { CONTRACT_STATUS, INSTALLMENT_KIND, INSTALLMENT_STATUS, PAYMENT_STATUS, ROLE_LABELS, label } from '../core/labels';
 import { AuditEvent, Contract, ContractParty, Customer, DocumentItem, Member, Notice, Payment, PlanView, ProjectDetail, TemplateView, Unit } from '../core/models';
 import { SessionService } from '../core/session.service';
 import { EmptyState, Loading, Logo, Pager, money, problemMessage, when } from '../shared/ui';
@@ -115,6 +115,12 @@ export class ContractsPage implements OnInit {
   readonly money = money; readonly when = when;
 }
 
+type ExtraControls = {
+  label: FormControl<string>;
+  dueDate: FormControl<string>;
+  amount: FormControl<number>;
+};
+
 @Component({
   selector: 'app-contract-detail',
   imports: [ReactiveFormsModule, RouterLink, Logo],
@@ -141,10 +147,12 @@ export class ContractsPage implements OnInit {
         <h2 class="text-2xl">Plan de pagos</h2>
         @if (plan(); as view) {
           <p class="text-sm">Pagado {{ money(view.paid, current.currency) }} · Saldo {{ money(view.balance, current.currency) }}</p>
-          <div class="mt-3 overflow-x-auto"><table class="w-full min-w-[640px] text-left text-sm"><thead class="text-ink-soft"><tr><th>Cuota</th><th>Vence</th><th>Monto</th><th>Pagado</th><th>Estado</th></tr></thead>
-            <tbody>@for (row of view.installments; track row.id) { <tr class="border-t border-line"><td class="py-2">{{ row.label }}</td><td>{{ when(row.dueDate) }}</td><td>{{ money(row.amount, current.currency) }}</td><td>{{ money(row.paidAmount, current.currency) }}</td><td>{{ installment(row.status) }}</td></tr> }</tbody></table></div>
+          <div class="mt-3 overflow-x-auto"><table class="w-full min-w-[720px] text-left text-sm"><thead class="text-ink-soft"><tr><th>Tipo</th><th>Cuota</th><th>Vence</th><th>Monto</th><th>Pagado</th><th>Estado</th></tr></thead>
+            <tbody>@for (row of view.installments; track row.id) { <tr class="border-t border-line"><td class="py-2">{{ kind(row.kind) }}</td><td>{{ row.label }}</td><td>{{ when(row.dueDate) }}</td><td>{{ money(row.amount, current.currency) }}</td><td>{{ money(row.paidAmount, current.currency) }}</td><td>{{ installment(row.status) }}</td></tr> }</tbody></table></div>
         }
-        @if (canWrite() && (current.status === 'DRAFT' || current.status === 'ACTIVE')) {
+        @if (canWrite() && planLocked()) {
+          <p class="no-print mt-3 text-sm text-ink-soft">Este plan no se puede regenerar porque ya hay pagos confirmados o reportados.</p>
+        } @else if (canWrite() && (current.status === 'DRAFT' || current.status === 'ACTIVE')) {
           <form class="no-print mt-4 grid gap-3 md:grid-cols-3" [formGroup]="planForm" (ngSubmit)="savePlan()">
             <label class="text-sm">Total<input class="field" type="number" formControlName="totalPrice" /></label>
             <label class="text-sm">Inicial<input class="field" type="number" formControlName="downPayment" /></label>
@@ -154,6 +162,21 @@ export class ContractsPage implements OnInit {
             <label class="text-sm">Primera cuota<input class="field" type="date" formControlName="firstDueDate" /></label>
             <label class="text-sm">Contra entrega<input class="field" type="number" formControlName="deliveryAmount" /></label>
             <label class="text-sm">Vence entrega<input class="field" type="date" formControlName="deliveryDueDate" /></label>
+            <div class="md:col-span-3 rounded-2xl border border-line p-3" formArrayName="extraordinary">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-sm font-medium">Cuotas extraordinarias</p>
+                <button type="button" class="rounded-full border border-line px-3 py-1 text-sm" (click)="addExtra()">Agregar</button>
+              </div>
+              <p class="mt-1 text-sm text-ink-soft">Estos montos se restan del saldo que se reparte en las cuotas regulares. Saldo regular: {{ money(regularBalance(), current.currency) }}.</p>
+              @for (row of extraordinary().controls; track $index) {
+                <div class="mt-2 grid items-end gap-2 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" [formGroupName]="$index">
+                  <label class="text-sm">Concepto<input class="field" formControlName="label" maxlength="120" /></label>
+                  <label class="text-sm">Vence<input class="field" type="date" formControlName="dueDate" /></label>
+                  <label class="text-sm">Monto<input class="field" type="number" formControlName="amount" /></label>
+                  <button type="button" class="rounded-full border border-line px-3 py-2 text-sm" (click)="removeExtra($index)">Quitar</button>
+                </div>
+              }
+            </div>
             <label class="text-sm md:col-span-3">Condiciones<textarea class="field" rows="2" formControlName="conditions"></textarea></label>
             <button class="rounded-full bg-sea px-4 py-2 text-sand" type="submit">Generar calendario</button>
           </form>
@@ -208,27 +231,85 @@ export class ContractDetailPage implements OnInit {
   readonly customerId = signal('');
   readonly visible = signal(false);
   readonly receipt = signal<File | null>(null);
-  readonly planForm = this.formBuilder.nonNullable.group({ totalPrice: [0], downPayment: [0], downPaymentDueDate: [''], installmentCount: [12], frequency: ['MONTHLY'], firstDueDate: [''], deliveryAmount: [''], deliveryDueDate: [''], conditions: [''] });
+  readonly planForm = this.formBuilder.nonNullable.group({
+    totalPrice: [0],
+    downPayment: [0],
+    downPaymentDueDate: [''],
+    installmentCount: [12],
+    frequency: ['MONTHLY'],
+    firstDueDate: [''],
+    deliveryAmount: [''],
+    deliveryDueDate: [''],
+    conditions: [''],
+    extraordinary: this.formBuilder.nonNullable.array<FormGroup<ExtraControls>>([]),
+  });
   readonly paymentForm = this.formBuilder.nonNullable.group({ amount: [0, Validators.required], reference: [''], notes: [''] });
 
   ngOnInit(): void { this.reload(); this.api.customers({ page: 0, size: 100 }).subscribe((page) => this.customers.set(page.content)); this.api.brand().subscribe((brand) => this.brand.set(brand)); }
   canWrite() { const role = this.session.company()?.role; return role === 'COMPANY_ADMIN' || role === 'FINANCE'; }
+  planLocked(): boolean {
+    return (this.plan()?.payments ?? []).some((payment) => payment.status === 'VALIDATED' || payment.status === 'REPORTED');
+  }
+  extraordinary(): FormArray<FormGroup<ExtraControls>> {
+    return this.planForm.controls.extraordinary;
+  }
+  addExtra(): void { this.extraordinary().push(this.extraGroup()); }
+  removeExtra(index: number): void { this.extraordinary().removeAt(index); }
+  regularBalance(): number {
+    const value = this.planForm.getRawValue();
+    const extras = value.extraordinary.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+    const total = Number(value.totalPrice) || 0;
+    const down = Number(value.downPayment) || 0;
+    const delivery = Number(value.deliveryAmount) || 0;
+    return Math.round((total - down - delivery - extras) * 100) / 100;
+  }
   reload(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
     this.api.contract(id).subscribe((detail) => {
       this.contract.set(detail.contract);
       this.parties.set(detail.parties);
-      this.planForm.patchValue({ totalPrice: detail.contract.agreedPrice, downPayment: detail.contract.agreedDownPayment });
+      this.api.plan(id).subscribe({
+        next: (plan) => {
+          this.plan.set(plan);
+          this.fillPlan(detail.contract, plan);
+        },
+        error: () => this.fillPlan(detail.contract, { plan: null, installments: [], payments: [], allocations: [], paid: 0, balance: detail.contract.agreedPrice }),
+      });
     });
-    this.api.plan(id).subscribe((plan) => this.plan.set(plan));
     this.api.documents('CONTRACT', id).subscribe((documents) => this.documents.set(documents));
   }
   addParty(): void { const id = this.contract()?.id; if (id && this.customerId()) this.api.addParty(id, this.customerId(), this.parties().length === 0).subscribe({ next: () => this.reload(), error: (error) => this.message.set(problemMessage(error)) }); }
   removeParty(party: ContractParty): void { const id = this.contract()?.id; if (id) this.api.removeParty(id, party.customerId).subscribe({ next: () => this.reload() }); }
   savePlan(): void {
-    const id = this.contract()?.id; if (!id) return;
+    const id = this.contract()?.id;
+    if (!id || this.planLocked()) return;
     const value = this.planForm.getRawValue();
-    this.api.savePlan(id, { ...value, totalPrice: Number(value.totalPrice), downPayment: Number(value.downPayment), installmentCount: Number(value.installmentCount), deliveryAmount: value.deliveryAmount ? Number(value.deliveryAmount) : null, downPaymentDueDate: value.downPaymentDueDate || null, firstDueDate: value.firstDueDate || null, deliveryDueDate: value.deliveryDueDate || null, extraordinary: [] }).subscribe({ next: (plan) => { this.plan.set(plan); this.message.set('Calendario generado.'); }, error: (error) => this.message.set(problemMessage(error)) });
+    const extraordinary = value.extraordinary.map((row) => ({ label: row.label.trim(), dueDate: row.dueDate, amount: Number(row.amount) }));
+    if (extraordinary.some((row) => !row.label || !row.dueDate || !(row.amount > 0))) {
+      this.extraordinary().markAllAsTouched();
+      this.message.set('Cada cuota extraordinaria necesita concepto, fecha y un monto mayor que cero.');
+      return;
+    }
+    this.api.savePlan(id, {
+      totalPrice: Number(value.totalPrice),
+      downPayment: Number(value.downPayment),
+      downPaymentDueDate: value.downPaymentDueDate || null,
+      installmentCount: Number(value.installmentCount),
+      frequency: value.frequency,
+      firstDueDate: value.firstDueDate || null,
+      deliveryAmount: value.deliveryAmount ? Number(value.deliveryAmount) : null,
+      deliveryDueDate: value.deliveryDueDate || null,
+      conditions: value.conditions,
+      extraordinary,
+    }).subscribe({
+      next: (plan) => {
+        this.plan.set(plan);
+        const current = this.contract();
+        if (current) this.fillPlan(current, plan);
+        this.message.set('Calendario generado.');
+      },
+      error: (error) => this.message.set(problemMessage(error)),
+    });
   }
   register(): void {
     const id = this.contract()?.id; if (!id) return;
@@ -247,6 +328,37 @@ export class ContractDetailPage implements OnInit {
   customerName(id: string) { return this.customers().find((item) => item.id === id)?.fullName ?? 'Comprador'; }
   status(value: string) { return label(CONTRACT_STATUS, value); }
   installment(value: string) { return label(INSTALLMENT_STATUS, value); }
+  kind(value: string) { return label(INSTALLMENT_KIND, value); }
+  private fillPlan(contract: Contract, view: PlanView): void {
+    const rows = view.installments;
+    const header = view.plan;
+    const down = rows.find((row) => row.kind === 'DOWN_PAYMENT');
+    const firstRegular = rows.find((row) => row.kind === 'REGULAR');
+    const delivery = rows.find((row) => row.kind === 'DELIVERY');
+    this.planForm.patchValue({
+      totalPrice: header?.totalPrice ?? contract.agreedPrice,
+      downPayment: header?.downPayment ?? contract.agreedDownPayment,
+      downPaymentDueDate: down?.dueDate ?? '',
+      installmentCount: header?.installmentCount ?? 12,
+      frequency: header?.frequency || 'MONTHLY',
+      firstDueDate: firstRegular?.dueDate ?? '',
+      deliveryAmount: header?.deliveryAmount == null ? '' : String(header.deliveryAmount),
+      deliveryDueDate: delivery?.dueDate ?? '',
+      conditions: header?.conditions ?? '',
+    });
+    const extras = this.extraordinary();
+    extras.clear();
+    for (const row of rows.filter((item) => item.kind === 'EXTRAORDINARY')) {
+      extras.push(this.extraGroup(row.label, row.dueDate, Number(row.amount)));
+    }
+  }
+  private extraGroup(labelText = '', dueDate = '', amount = 0): FormGroup<ExtraControls> {
+    return this.formBuilder.nonNullable.group({
+      label: [labelText, [Validators.required, Validators.maxLength(120)]],
+      dueDate: [dueDate, Validators.required],
+      amount: [amount, [Validators.required, Validators.min(0.01)]],
+    });
+  }
   paymentStatus(value: string) { return label(PAYMENT_STATUS, value); }
   selectValue(event: Event) { return (event.target as HTMLSelectElement).value; }
   fileOf(event: Event) { return (event.target as HTMLInputElement).files?.[0] ?? null; }
