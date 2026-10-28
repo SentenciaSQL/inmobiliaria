@@ -1,0 +1,10 @@
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+alzada:
+  cookie-secure: ${COOKIE_SECURE:true}
+  storage:
+    type: ${STORAGE_TYPE:s3}

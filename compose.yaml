@@ -1,0 +1,130 @@
+name: alzada
+
+services:
+  db:
+    image: postgres:16.10-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: inmobiliaria
+      POSTGRES_USER: inmobiliaria
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-alzada-local-owner}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-alzada-local-app}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infra/postgres/init-app-role.sh:/docker-entrypoint-initdb.d/01-app-role.sh:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inmobiliaria -d inmobiliaria"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-alzada}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-alzada-local-secret}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-alzada}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-alzada-local-secret}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing local/alzada
+
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8025/livez"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      DATABASE_URL: jdbc:postgresql://db:5432/inmobiliaria
+      DATABASE_USER: inmobiliaria_app
+      DATABASE_PASSWORD: ${APP_DB_PASSWORD:-alzada-local-app}
+      FLYWAY_USER: inmobiliaria
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-alzada-local-owner}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-change-this-secret-key-32b}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:8088}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://127.0.0.1:8088}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      STORAGE_TYPE: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-alzada}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-alzada-local-secret}
+      S3_BUCKET: alzada
+      S3_PATH_STYLE: "true"
+      EMAIL_ENABLED: "true"
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      MAIL_FROM: Alzada <no-reply@alzada.local>
+    depends_on:
+      db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+
+  api-health:
+    image: curlimages/curl:8.11.1
+    network_mode: "service:api"
+    depends_on:
+      - api
+    entrypoint: ["sleep", "infinity"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8088:8080"
+    depends_on:
+      api-health:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  minio-data:

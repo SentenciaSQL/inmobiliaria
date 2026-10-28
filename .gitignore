@@ -1,0 +1,14 @@
+target/
+node_modules/
+dist/
+.angular/
+data/
+.env
+*.log
+.idea/
+.vscode/
+*.iml
+.DS_Store
+frontend/dist/
+backend/target/
+coverage/

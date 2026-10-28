@@ -1,0 +1,6 @@
+target
+.git
+**/.npmrc
+*.md
+.idea
+data
